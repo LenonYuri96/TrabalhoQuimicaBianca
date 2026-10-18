@@ -1,10 +1,6 @@
 <?php
 // Carrega a conexão com suporte a case-sensitive (Linux/Windows)
-if (file_exists(__DIR__ . '/../config/Database.php')) {
-    require_once __DIR__ . '/../config/Database.php';
-} else {
-    require_once __DIR__ . '/../config/database.php';
-}
+require_once __DIR__ . '/../config/Database.php';
 
 class Equipamento
 {

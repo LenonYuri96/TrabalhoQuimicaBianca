@@ -6,29 +6,39 @@ CREATE DATABASE IF NOT EXISTS lab_control CHARACTER SET utf8mb4 COLLATE utf8mb4_
 
 USE lab_control;
 
--- Desativa checagem temporária de chaves para recriação limpa e ordenada
-SET
-    FOREIGN_KEY_CHECKS = 0;
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- Remoção prévia das tabelas na ordem inversa de dependência
 DROP TABLE IF EXISTS residuos;
-
 DROP TABLE IF EXISTS aulas_agenda;
-
 DROP TABLE IF EXISTS pratica_itens;
-
 DROP TABLE IF EXISTS praticas;
-
 DROP TABLE IF EXISTS ocorrencias;
-
 DROP TABLE IF EXISTS equipamentos;
-
 DROP TABLE IF EXISTS quimicos;
+DROP TABLE IF EXISTS usuarios;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- --------------------------------------------------------
+-- 0. Tabela: Usuários / Instrutores do Laboratório
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    senha VARCHAR(255) NOT NULL,
+    perfil ENUM('instrutor', 'admin') NOT NULL DEFAULT 'instrutor',
+    ativo TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_usuarios_email (email)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 -- 1. Tabela: Químicos e Reagentes
 -- --------------------------------------------------------
-CREATE TABLE quimicos (
+CREATE TABLE IF NOT EXISTS quimicos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nome VARCHAR(150) NOT NULL,
     quantidade DECIMAL(10, 2) NOT NULL DEFAULT 1.00,
@@ -43,9 +53,9 @@ CREATE TABLE quimicos (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
--- 2. Tabela: Equipamentos & Vidrarias (Estrutura Unificada)
+-- 2. Tabela: Equipamentos & Vidrarias
 -- --------------------------------------------------------
-CREATE TABLE equipamentos (
+CREATE TABLE IF NOT EXISTS equipamentos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tipo ENUM('equipamento', 'vidraria') NOT NULL DEFAULT 'equipamento',
     nome VARCHAR(150) NOT NULL,
@@ -54,12 +64,11 @@ CREATE TABLE equipamentos (
     frequencia_meses INT NULL COMMENT 'Periodicidade em meses (1, 6, 12 ou NULL para inspeção manual)',
     ultima_manutencao DATE NULL,
     proxima_manutencao DATE NULL,
-    -- Controle de Estoque, Avarias, Quebras e Defeitos:
-    quantidade_total INT NOT NULL DEFAULT 1 COMMENT 'Total patrimoniado/comprado',
-    quantidade_disponivel INT NOT NULL DEFAULT 1 COMMENT 'Disponíveis e intactas para bancada',
-    quantidade_quebrada INT NOT NULL DEFAULT 0 COMMENT 'Quebras totais / inutilizadas',
-    quantidade_defeituosa INT NOT NULL DEFAULT 0 COMMENT 'Trincas, fissuras, boca lascada',
-    observacao VARCHAR(255) NULL COMMENT 'Cuidados específicos, rotina ou calibração',
+    quantidade_total INT NOT NULL DEFAULT 1,
+    quantidade_disponivel INT NOT NULL DEFAULT 1,
+    quantidade_quebrada INT NOT NULL DEFAULT 0,
+    quantidade_defeituosa INT NOT NULL DEFAULT 0,
+    observacao VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_equipamentos_tipo (tipo),
@@ -69,14 +78,14 @@ CREATE TABLE equipamentos (
 -- --------------------------------------------------------
 -- 3. Tabela: Registro de Ocorrências e Incidentes
 -- --------------------------------------------------------
-CREATE TABLE ocorrencias (
+CREATE TABLE IF NOT EXISTS ocorrencias (
     id INT AUTO_INCREMENT PRIMARY KEY,
     relator_nome VARCHAR(150) NOT NULL,
     local_ocorrido VARCHAR(150) NOT NULL,
     data_hora DATETIME NOT NULL,
     categoria ENUM('Vidraria', 'Equipamento', 'Produto') NOT NULL,
     item_nome VARCHAR(150) NOT NULL,
-    turma_disciplina VARCHAR(150) NULL COMMENT 'Turma ou matéria em aula no momento da ocorrência',
+    turma_disciplina VARCHAR(150) NULL,
     descricao TEXT NOT NULL,
     status ENUM('Pendente', 'Em Análise', 'Resolvido') NOT NULL DEFAULT 'Pendente',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -88,69 +97,75 @@ CREATE TABLE ocorrencias (
 -- --------------------------------------------------------
 -- 4. Tabela: Roteiros de Práticas de Laboratório
 -- --------------------------------------------------------
-CREATE TABLE praticas (
+CREATE TABLE IF NOT EXISTS praticas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     titulo VARCHAR(255) NOT NULL,
     materia_curso VARCHAR(150) NOT NULL,
     objetivo TEXT NOT NULL,
-    procedimento TEXT NOT NULL COMMENT 'Passo a passo experimental',
+    procedimento TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_praticas_materia (materia_curso)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
--- 5. Tabela: Itens Usados na Prática (Reagentes, Vidrarias e Equipamentos)
+-- 5. Tabela: Itens Usados na Prática
 -- --------------------------------------------------------
-CREATE TABLE pratica_itens (
+CREATE TABLE IF NOT EXISTS pratica_itens (
     id INT AUTO_INCREMENT PRIMARY KEY,
     pratica_id INT NOT NULL,
     tipo_item ENUM('quimico', 'equipamento', 'vidraria') NOT NULL,
-    item_id INT NOT NULL COMMENT 'ID correspondente na tabela quimicos ou equipamentos',
-    quantidade_necessaria VARCHAR(100) NOT NULL COMMENT 'Ex: 50 mL, 2 un, 3 gotas',
+    item_id INT NOT NULL,
+    quantidade_necessaria VARCHAR(100) NOT NULL,
     observacao VARCHAR(255) NULL,
     FOREIGN KEY (pratica_id) REFERENCES praticas(id) ON DELETE CASCADE,
     INDEX idx_itens_busca (tipo_item, item_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
--- 6. Tabela: Agenda de Aulas (Materiais por Dia e Matéria)
+-- 6. Tabela: Agenda de Aulas
 -- --------------------------------------------------------
-CREATE TABLE aulas_agenda (
+CREATE TABLE IF NOT EXISTS aulas_agenda (
     id INT AUTO_INCREMENT PRIMARY KEY,
     data_aula DATE NOT NULL,
-    horario VARCHAR(50) NOT NULL COMMENT 'Ex: 08:00 - 10:00',
+    horario VARCHAR(50) NOT NULL,
     materia VARCHAR(150) NOT NULL,
     turma VARCHAR(100) NOT NULL,
     professor VARCHAR(150) NOT NULL,
-    pratica_id INT NULL COMMENT 'Roteiro vinculado para extrair materiais necessários',
+    pratica_id INT NULL,
     observacoes_adicionais TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (pratica_id) REFERENCES praticas(id) ON DELETE
-    SET
-        NULL,
-        INDEX idx_aulas_data (data_aula),
-        INDEX idx_aulas_materia (materia)
+    FOREIGN KEY (pratica_id) REFERENCES praticas(id) ON DELETE SET NULL,
+    INDEX idx_aulas_data (data_aula),
+    INDEX idx_aulas_materia (materia)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 -- 7. Tabela: Gestão de Resíduos Químicos & Bombonas
 -- --------------------------------------------------------
-CREATE TABLE residuos (
+CREATE TABLE IF NOT EXISTS residuos (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo_bombona VARCHAR(50) NOT NULL COMMENT 'Ex: BOM-ORG-01, BOM-MET-02',
-    tipo_residuo VARCHAR(100) NOT NULL COMMENT 'Orgânico Inflamável, Solução Ácida, Metais Pesados',
-    local_armazenamento VARCHAR(150) NOT NULL COMMENT 'Bancada de Descarte, Depósito Externo',
+    codigo_bombona VARCHAR(50) NOT NULL,
+    tipo_residuo VARCHAR(100) NOT NULL,
+    local_armazenamento VARCHAR(150) NOT NULL,
     volume_litros DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     capacidade_maxima DECIMAL(10, 2) NOT NULL DEFAULT 20.00,
-    status ENUM(
-        'Em Coleta',
-        'Cheia / Aguardando Coleta',
-        'Descartada'
-    ) NOT NULL DEFAULT 'Em Coleta',
+    status ENUM('Em Coleta', 'Cheia / Aguardando Coleta', 'Descartada') NOT NULL DEFAULT 'Em Coleta',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_residuos_status (status),
     INDEX idx_residuos_tipo (tipo_residuo)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Usuário Inicial Padrão (Senha padrão: admin123)
+-- --------------------------------------------------------
+INSERT INTO usuarios (nome, email, senha, perfil)
+VALUES (
+    'Instrutor FIEMG', 
+    'instrutor@fiemg.com.br', 
+    '$2y$10$eEZZmUj3W0zR3iH59QyO7ezWp5oZzJph7KxZ.o5lq0mYcQ9l1g9l6', -- hash de 'admin123'
+    'instrutor'
+)
+ON DUPLICATE KEY UPDATE id=id;

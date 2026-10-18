@@ -11,7 +11,7 @@
 if (file_exists(__DIR__ . '/../config/Database.php')) {
     require_once __DIR__ . '/../config/Database.php';
 } elseif (file_exists(__DIR__ . '/../config/database.php')) {
-    require_once __DIR__ . '/../config/database.php';
+    require_once __DIR__ . '/../config/Database.php';
 } else {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
